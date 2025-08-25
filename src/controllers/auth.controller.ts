@@ -15,15 +15,35 @@ interface MetafieldMutationResponse {
 }
 
 /**
- * Initiates the OAuth installation process.
+ * This is the main entry point for the app. It handles both new installations
+ * and opening the app after it's been installed.
  */
 export const initiateAuth = async (req: Request, res: Response) => {
     const shop = req.query.shop as string;
     if (!shop) {
       return res.status(400).send("Bad Request: Missing 'shop' query parameter.");
     }
-  
+
+    // --- SMART REDIRECT LOGIC ---
+    // Check if the app is already installed by looking for an active session.
+    const sessionId = shopify.session.getOfflineId(shop);
+    const session = await session_storage.loadSession(sessionId);
+
+    if (session) {
+        // If a session exists, the app is already installed.
+        // Redirect to the Vercel frontend, forwarding all necessary parameters.
+        const frontendUrl = new URL('https://shopify-tawny.vercel.app');
+        frontendUrl.search = new URLSearchParams(req.query as Record<string, string>).toString();
+        
+        console.log("App already installed. Redirecting to frontend:", frontendUrl.toString());
+        return res.redirect(frontendUrl.toString());
+    }
+    // --- END SMART REDIRECT LOGIC ---
+
+    // If no session is found, this is a new installation.
+    // Proceed with the OAuth handshake.
     try {
+      console.log("New installation detected. Beginning OAuth flow...");
       await shopify.auth.begin({
         shop,
         callbackPath: "/api/auth/callback",
@@ -45,26 +65,10 @@ export const initiateAuth = async (req: Request, res: Response) => {
  */
 export const handleCallback = async (req: Request, res: Response) => {
   try {
-    // The callback function will validate the request and create the session object.
-    const callback = await shopify.auth.callback({
+    await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
-
-    // --- MANUAL SESSION SAVE ---
-    // We explicitly take the session from the callback and save it ourselves.
-    if (callback.session) {
-        console.log("Manually attempting to store session:", callback.session.id);
-        const success = await session_storage.storeSession(callback.session);
-        if (success) {
-            console.log("✅ Manual session save successful.");
-        } else {
-            console.error("❌ Manual session save failed.");
-        }
-    } else {
-        console.error("Callback did not return a session to save.");
-    }
-    // --- END MANUAL SESSION SAVE ---
 
     if (res.headersSent) {
         return;
@@ -77,10 +81,12 @@ export const handleCallback = async (req: Request, res: Response) => {
         return res.status(400).send("Missing host or shop parameter");
     }
     
-    const redirectUrl = `https://admin.shopify.com/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`;
+    // After a successful installation, redirect to the app's entry point.
+    // Our "smart" initiateAuth function will then handle the final redirect to the frontend.
+    const appUrl = `https://admin.shopify.com/apps/${config.SHOPIFY_API_KEY}`;
     
-    console.log("Redirecting to embedded app:", redirectUrl);
-    res.redirect(redirectUrl);
+    console.log("Installation successful. Redirecting to app entry point:", appUrl);
+    res.redirect(appUrl);
 
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
