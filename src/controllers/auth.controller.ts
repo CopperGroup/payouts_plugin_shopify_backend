@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
-import { session_storage, shopify } from '../services/shopify.service';
+import { shopify, session_storage } from '../services/shopify.service'; // Import session_storage
 import { connectShopifyStore, loginMerchant } from '../services/apiClient.service';
 import { config } from '../config/env';
 import { Session } from '@shopify/shopify-api';
-import { logRedisContent } from '../config/redis';
 
 // --- Type definition for the GraphQL response ---
 interface MetafieldMutationResponse {
@@ -43,34 +42,46 @@ export const initiateAuth = async (req: Request, res: Response) => {
 
 /**
  * Handles the callback from Shopify after the merchant authorizes the app.
- * The Shopify library handles the entire process, including the final redirect.
  */
 export const handleCallback = async (req: Request, res: Response) => {
   try {
-    // The callback function will validate the request, exchange the code for a
-    // session, store it, and handle the final redirect to the embedded app.
-    // We do not need to call res.redirect() ourselves.
-   const callback = await shopify.auth.callback({
+    // The callback function will validate the request and create the session object.
+    const callback = await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
 
-    if (callback.session?.shop) {
-        const offlineId = shopify.session.getOfflineId(callback.session.shop);
-        console.log(`Attempting to load session with ID: ${offlineId} directly from Redis...`);
-        const sessionFromRedis = await session_storage.loadSession(offlineId);
-    
-        if (sessionFromRedis) {
-            console.log('✅ SUCCESS: Session found in Redis:', sessionFromRedis);
+    // --- MANUAL SESSION SAVE ---
+    // We explicitly take the session from the callback and save it ourselves.
+    if (callback.session) {
+        console.log("Manually attempting to store session:", callback.session.id);
+        const success = await session_storage.storeSession(callback.session);
+        if (success) {
+            console.log("✅ Manual session save successful.");
         } else {
-            console.error('❌ FAILURE: Session was NOT found in Redis immediately after creation.');
-            await session_storage.storeSession(callback.session);
+            console.error("❌ Manual session save failed.");
         }
     } else {
-        console.warn('Callback did not return a session ID to check.');
+        console.error("Callback did not return a session to save.");
+    }
+    // --- END MANUAL SESSION SAVE ---
+
+    if (res.headersSent) {
+        return;
     }
 
-    await logRedisContent()
+    const host = req.query.host as string;
+    const shop = req.query.shop as string;
+
+    if (!host || !shop) {
+        return res.status(400).send("Missing host or shop parameter");
+    }
+    
+    const redirectUrl = `https://admin.shopify.com/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`;
+    
+    console.log("Redirecting to embedded app:", redirectUrl);
+    res.redirect(redirectUrl);
+
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
     if (!res.headersSent) {

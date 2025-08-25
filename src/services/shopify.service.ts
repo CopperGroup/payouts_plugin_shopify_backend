@@ -54,44 +54,6 @@ export const beginAuth = async (req: Request, res: Response, shop: string) => {
   });
 };
 
-// --- Handle OAuth callback ---
-export const validateAuthCallback = async (req: Request, res: Response): Promise<Session | Response<void>> => {
-  const callback = await shopify.auth.callback({
-    rawRequest: req,
-    rawResponse: res,
-  });
-
-  if (callback.session) {
-    console.log("🔑 Callback returned session:", {
-      id: callback.session.id,
-      shop: callback.session.shop,
-      isOnline: callback.session.isOnline,
-    });
-
-    const check = await session_storage.loadSession(callback.session.id);
-    if (!check) {
-      console.error("❌ Session not found in Redis, storing manually...");
-      await session_storage.storeSession(callback.session);
-    }
-  } else {
-    console.warn("⚠️ No session returned from callback.");
-  }
-
-    // 🔑 This is the missing piece
-    const { host, shop } = req.query as { host?: string; shop?: string };
-    if (!host || !shop) {
-        console.error("❌ Missing host or shop in callback query:", req.query);
-        return res.status(400).send("Missing host or shop parameter");
-    }
-
-    // 3️⃣ Redirect обратно в embedded Shopify App
-    const redirectUrl = `https://${shop}/admin/apps/${config.SHOPIFY_API_KEY}?host=${host}`;
-    console.log("➡️ Redirecting back to Shopify Admin:", redirectUrl);
-    res.redirect(redirectUrl);
-
-  return callback.session;
-};
-
 
 // --- Example REST call ---
 export const getRestProducts = async (session: Session) => {
