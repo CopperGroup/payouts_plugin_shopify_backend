@@ -1,0 +1,38 @@
+# Node modules
+node_modules/
+**/node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+**/dist/
+**/build/
+
+# TypeScript
+*.tsbuildinfo
+
+# VSCode
+.vscode/
+
+# Mac / Linux
+.DS_Store
+*.swp
+
+# Docker
+docker-compose.override.yml
+*.tgz
+
+# Temporary files
+*.tmp

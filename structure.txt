@@ -1,0 +1,28 @@
+        │   ├── 📁src
+        │   │   ├── 📁api               # Defines API routes (e.g., /auth, /stores)
+        │   │   │   ├── auth.routes.js    # Shopify OAuth routes
+        │   │   │   ├── store.routes.js   # Connect/disconnect store endpoints
+        │   │   │   └── webhooks.routes.js# Handles incoming webhooks from Shopify
+        │   │   │
+        │   │   ├── 📁controllers       # Handles request/response logic for routes
+        │   │   │   ├── auth.controller.js
+        │   │   │   └── store.controller.js
+        │   │   │
+        │   │   ├── 📁middleware        # Functions for verifying requests (e.g., auth checks)
+        │   │   │   ├── verifyShopify.js  # Verifies HMAC signatures from Shopify
+        │   │   │   └── verifyJwt.js      # Verifies tokens from your frontend
+        │   │   │
+        │   │   ├── 📁services          # Business logic and communication with other services
+        │   │   │   ├── shopify.service.js# Wrapper for Shopify Admin API calls
+        │   │   │   └── apiClient.service.js # Handles calls to your microservices (checkout, items, etc.)
+        │   │   │
+        │   │   └── 📁utils             # Helper functions (e.g., encryption)
+        │   │       └── crypto.js       # For encrypting/decrypting the store accessToken
+        
+        │   │
+        │   ├── 📄server.js             # Main server entry point
+        │   └── 📄config.js             # Loads environment variables
+        │
+        ├── 📄.env.example            # Example environment variables
+        └── 📄package.json
+        

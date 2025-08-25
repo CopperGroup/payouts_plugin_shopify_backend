@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  shopify-backend:
+    container_name: shopify-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev   # 👈 use the dev stage
+    volumes:
+      - ./src:/usr/src/app/src  # hot reload source
+      # - /usr/src/app/node_modules  # prevent overwriting node_modules
+    ports:
+      - "8085:8081"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    container_name: shopify-redis
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - '6383:6379'
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+
+  redis-commander:
+    container_name: shopify-redis-commander
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - '8086:8081'
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:
+    driver: local
