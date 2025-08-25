@@ -24,23 +24,8 @@ export const initiateAuth = async (req: Request, res: Response) => {
   }
 
   try {
-    const resProxy = new Proxy(res, {
-      get(target, prop, receiver) {
-        if (prop === 'setHeader') {
-          return (name: string, value: string | number | readonly string[]) => {
-            let modifiedValue = value;
-            if (name.toLowerCase() === 'set-cookie' && Array.isArray(value)) {
-              modifiedValue = value.map(cookie => cookie.replace(/SameSite=Lax/i, 'SameSite=None'));
-              console.log('Successfully intercepted and corrected Set-Cookie header to use SameSite=None.');
-            }
-            return target.setHeader(name, modifiedValue);
-          };
-        }
-        return Reflect.get(target, prop, receiver);
-      },
-    });
-
-    await beginAuth(req, resProxy, shop);
+    // Reverted to a direct call without the proxy for simplification
+    await beginAuth(req, res, shop);
 
   } catch (error: any) {
     console.error('Error initiating authentication:', error.message);
@@ -72,7 +57,6 @@ export const handleCallback = async (req: Request, res: Response) => {
     }
     const decodedHost = Buffer.from(host, 'base64').toString('utf-8');
     
-    // --- FINAL FIX: Add the shop and host query parameters to the redirect URL ---
     res.redirect(`https://${decodedHost}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`);
 
   } catch (error: any) {
