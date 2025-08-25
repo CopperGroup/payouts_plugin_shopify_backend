@@ -3,6 +3,7 @@ import { session_storage, shopify } from '../services/shopify.service';
 import { connectShopifyStore, loginMerchant } from '../services/apiClient.service';
 import { config } from '../config/env';
 import { Session } from '@shopify/shopify-api';
+import { logRedisContent } from '../config/redis';
 
 // --- Type definition for the GraphQL response ---
 interface MetafieldMutationResponse {
@@ -54,17 +55,22 @@ export const handleCallback = async (req: Request, res: Response) => {
       rawResponse: res,
     });
 
-    if (callback.session?.id) {
-        console.log(`Attempting to load session with ID: ${callback.session.id} directly from Redis...`);
-        const sessionFromRedis = await session_storage.loadSession(callback.session.id);
+    if (callback.session?.shop) {
+        const offlineId = shopify.session.getOfflineId(callback.session.shop);
+        console.log(`Attempting to load session with ID: ${offlineId} directly from Redis...`);
+        const sessionFromRedis = await session_storage.loadSession(offlineId);
+    
         if (sessionFromRedis) {
             console.log('✅ SUCCESS: Session found in Redis:', sessionFromRedis);
         } else {
             console.error('❌ FAILURE: Session was NOT found in Redis immediately after creation.');
+            await session_storage.storeSession(callback.session);
         }
     } else {
         console.warn('Callback did not return a session ID to check.');
     }
+
+    await logRedisContent()
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
     if (!res.headersSent) {

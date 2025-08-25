@@ -2,8 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { config } from './config/env';
 import apiRoutes from './api';
-import { connectRedis } from './config/redis'; // <-- Import the connect function
-import { initializeShopify } from './services/shopify.service';
+// We no longer need to import connectRedis or initializeShopify
 
 // --- Server Initialization ---
 const app = express();
@@ -26,18 +25,8 @@ app.get('/', (req: Request, res: Response) => {
   res.status(200).send('Shopify Plugin Backend is running! 🚀');
 });
 
-// --- Start Server Function ---
-const startServer = async () => {
-  // Connect to Redis before starting the Express server
-  await connectRedis();
-  
-  initializeShopify();
-
-  app.listen(config.PORT, () => {
-    console.log(`✅ Server is listening on http://localhost:${config.PORT}`);
-    console.log(`🔧 Host configured for Shopify callbacks: ${config.HOST}`);
-  });
-};
-
-// --- Execute Start Server ---
-startServer();
+// --- Start Server ---
+app.listen(config.PORT, () => {
+  console.log(`✅ Server is listening on http://localhost:${config.PORT}`);
+  console.log(`🔧 Host configured for Shopify callbacks: ${config.HOST}`);
+});
