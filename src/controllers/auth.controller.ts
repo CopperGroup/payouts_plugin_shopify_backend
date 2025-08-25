@@ -16,8 +16,6 @@ interface MetafieldMutationResponse {
 
 /**
  * Initiates the OAuth installation process.
- * FINAL FIX: This now uses a response wrapper to intercept and modify
- * the Set-Cookie header on the fly, preventing race conditions.
  */
 export const initiateAuth = async (req: Request, res: Response) => {
   const shop = req.query.shop as string;
@@ -26,31 +24,22 @@ export const initiateAuth = async (req: Request, res: Response) => {
   }
 
   try {
-    // Create a proxy around the real response object
     const resProxy = new Proxy(res, {
-      // Use the 'get' trap to intercept property access on the response object
       get(target, prop, receiver) {
-        // If the property being accessed is 'setHeader'...
         if (prop === 'setHeader') {
-          // ...return our custom function instead of the original.
           return (name: string, value: string | number | readonly string[]) => {
             let modifiedValue = value;
-            // Intercept the 'set-cookie' header
             if (name.toLowerCase() === 'set-cookie' && Array.isArray(value)) {
-              // Force SameSite=None on the OAuth cookie
               modifiedValue = value.map(cookie => cookie.replace(/SameSite=Lax/i, 'SameSite=None'));
               console.log('Successfully intercepted and corrected Set-Cookie header to use SameSite=None.');
             }
-            // Apply the original setHeader method with the (potentially modified) value
             return target.setHeader(name, modifiedValue);
           };
         }
-        // For any other property, just return the original
         return Reflect.get(target, prop, receiver);
       },
     });
 
-    // Pass the proxy response object to the beginAuth function
     await beginAuth(req, resProxy, shop);
 
   } catch (error: any) {
@@ -76,12 +65,15 @@ export const handleCallback = async (req: Request, res: Response) => {
     }
 
     const host = req.query.host as string;
-    if (!host) {
-        return res.status(400).send("Missing host parameter");
+    const shop = req.query.shop as string; // Get the shop from the query
+
+    if (!host || !shop) {
+        return res.status(400).send("Missing host or shop parameter");
     }
     const decodedHost = Buffer.from(host, 'base64').toString('utf-8');
     
-    res.redirect(`https://${decodedHost}/apps/${config.SHOPIFY_API_KEY}`);
+    // --- FINAL FIX: Add the shop and host query parameters to the redirect URL ---
+    res.redirect(`https://${decodedHost}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`);
 
   } catch (error: any) {
     console.error('Error during OAuth callback:', error.message);
