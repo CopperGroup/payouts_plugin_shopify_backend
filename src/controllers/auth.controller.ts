@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { shopify, session_storage } from '../services/shopify.service'; // Import session_storage
+import { shopify, session_storage } from '../services/shopify.service';
 import { connectShopifyStore, loginMerchant } from '../services/apiClient.service';
 import { config } from '../config/env';
 import { Session } from '@shopify/shopify-api';
@@ -24,26 +24,31 @@ export const initiateAuth = async (req: Request, res: Response) => {
       return res.status(400).send("Bad Request: Missing 'shop' query parameter.");
     }
 
-    // --- SMART REDIRECT LOGIC ---
-    // Check if the app is already installed by looking for an active session.
+    console.log(`\n--- Initiating auth for shop: ${shop} ---`);
     const sessionId = shopify.session.getOfflineId(shop);
+    console.log(`Checking for existing session with ID: ${sessionId}`);
+
     const session = await session_storage.loadSession(sessionId);
 
     if (session) {
-        // If a session exists, the app is already installed.
-        // Redirect to the Vercel frontend, forwarding all necessary parameters.
-        const frontendUrl = new URL('https://shopify-tawny.vercel.app');
-        frontendUrl.search = new URLSearchParams(req.query as Record<string, string>).toString();
-        
-        console.log("App already installed. Redirecting to frontend:", frontendUrl.toString());
-        return res.redirect(frontendUrl.toString());
+        console.log("Found existing session in Redis.");
+        if (session.accessToken) {
+            console.log("✅ Session has an access token. App is installed.");
+            const frontendUrl = new URL('https://shopify-tawny.vercel.app');
+            frontendUrl.search = new URLSearchParams(req.query as Record<string, string>).toString();
+            
+            console.log("Redirecting to frontend:", frontendUrl.toString());
+            return res.redirect(frontendUrl.toString());
+        } else {
+            console.log("⚠️ Session found, but it has NO access token. Treating as a new installation.");
+        }
+    } else {
+        console.log("No session found in Redis. Treating as a new installation.");
     }
-    // --- END SMART REDIRECT LOGIC ---
 
-    // If no session is found, this is a new installation.
-    // Proceed with the OAuth handshake.
+    // If no valid session is found, this is a new installation.
     try {
-      console.log("New installation detected. Beginning OAuth flow...");
+      console.log("Beginning OAuth flow...");
       await shopify.auth.begin({
         shop,
         callbackPath: "/api/auth/callback",
@@ -65,12 +70,14 @@ export const initiateAuth = async (req: Request, res: Response) => {
  */
 export const handleCallback = async (req: Request, res: Response) => {
   try {
+    console.log(`\n--- Handling OAuth callback for shop: ${req.query.shop} ---`);
     await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
 
     if (res.headersSent) {
+        console.log("Redirect already handled by library.");
         return;
     }
 
@@ -81,8 +88,6 @@ export const handleCallback = async (req: Request, res: Response) => {
         return res.status(400).send("Missing host or shop parameter");
     }
     
-    // After a successful installation, redirect to the app's entry point.
-    // Our "smart" initiateAuth function will then handle the final redirect to the frontend.
     const appUrl = `https://admin.shopify.com/apps/${config.SHOPIFY_API_KEY}`;
     
     console.log("Installation successful. Redirecting to app entry point:", appUrl);
