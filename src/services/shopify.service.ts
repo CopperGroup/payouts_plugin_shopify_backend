@@ -1,5 +1,3 @@
-// src/services/shopify.service.ts
-
 import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, Session, ApiVersion } from '@shopify/shopify-api';
 import { restResources } from '@shopify/shopify-api/rest/admin/2025-04';
@@ -19,11 +17,18 @@ export const shopify = shopifyApi({
   isEmbeddedApp: true,
   restResources,
   sessionStorage: session_storage,
-  session: {
-    sameSite: 'none',
-    secure: true,
+  
+  // --- IMPORTANT FIX ---
+  // This section explicitly configures the OAuth cookie to work in an
+  // embedded context. Modern browsers require 'SameSite: none' and 'Secure'
+  // for cookies set by an iframe.
+  auth: {
+    cookie: {
+      sameSite: 'none',
+      secure: true,
+    },
   },
-  // The 'future' flag has been removed as it is not valid for your library version.
+  // The 'future' flag is not needed and has been removed.
 });
 
 // ... (the rest of the file remains the same)
