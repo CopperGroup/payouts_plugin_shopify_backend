@@ -32,10 +32,6 @@ export const initiateAuth = async (req: Request, res: Response) => {
         rawResponse: res,
       });
   
-      // ⚠️ ВАЖЛИВО: не роби більше нічого тут
-      // Shopify SDK сам поставить редірект
-      return;
-  
     } catch (error: any) {
       console.error("Error initiating authentication:", error.message);
       if (!res.headersSent) {
@@ -49,33 +45,25 @@ export const initiateAuth = async (req: Request, res: Response) => {
  */
 export const handleCallback = async (req: Request, res: Response) => {
   try {
-    const { session } = await shopify.auth.callback({
+    const callback = await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
 
-    if (!session) {
-      throw new Error("No session returned from callback");
-    }
-
     if (res.headersSent) {
-      return;
+        return;
     }
 
     const host = req.query.host as string;
-    if (!host) {
-      return res.status(400).send("Missing host parameter");
+    const shop = req.query.shop as string;
+
+    if (!host || !shop) {
+        return res.status(400).send("Missing host or shop parameter");
     }
+    const decodedHost = Buffer.from(host, 'base64').toString('utf-8');
+    
+    res.redirect(`https://${decodedHost}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`);
 
-    const shop = session.shop;
-
-    // ⚠️ redirect саме у Shopify Admin embedded app
-    res.redirect(
-      `https://admin.shopify.com/store/${shop.replace(
-        ".myshopify.com",
-        ""
-      )}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`
-    );
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
     if (error.response) {
@@ -86,7 +74,6 @@ export const handleCallback = async (req: Request, res: Response) => {
     }
   }
 };
-
 
 
 /**
