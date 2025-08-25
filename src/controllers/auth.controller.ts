@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { shopify, beginAuth } from '../services/shopify.service';
+import { shopify } from '../services/shopify.service';
 import { connectShopifyStore, loginMerchant } from '../services/apiClient.service';
 import { config } from '../config/env';
 import { Session } from '@shopify/shopify-api';
@@ -16,6 +16,7 @@ interface MetafieldMutationResponse {
 
 /**
  * Initiates the OAuth installation process.
+ * The Shopify library handles the entire redirect response.
  */
 export const initiateAuth = async (req: Request, res: Response) => {
     const shop = req.query.shop as string;
@@ -38,37 +39,24 @@ export const initiateAuth = async (req: Request, res: Response) => {
         res.status(500).send(error.message);
       }
     }
-  };
+};
 
 /**
  * Handles the callback from Shopify after the merchant authorizes the app.
+ * The Shopify library handles the entire process, including the final redirect.
  */
 export const handleCallback = async (req: Request, res: Response) => {
   try {
-    const callback = await shopify.auth.callback({
+    // The callback function will validate the request, exchange the code for a
+    // session, store it, and handle the final redirect to the embedded app.
+    // We do not need to call res.redirect() ourselves.
+    await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
 
-    if (res.headersSent) {
-        return;
-    }
-
-    const host = req.query.host as string;
-    const shop = req.query.shop as string;
-
-    if (!host || !shop) {
-        return res.status(400).send("Missing host or shop parameter");
-    }
-    const decodedHost = Buffer.from(host, 'base64').toString('utf-8');
-    
-    res.redirect(`https://${decodedHost}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`);
-
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
-    if (error.response) {
-      console.error("Error response body:", error.response.body);
-    }
     if (!res.headersSent) {
       res.status(500).send(error.message);
     }
