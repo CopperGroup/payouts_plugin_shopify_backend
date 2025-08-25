@@ -4,24 +4,15 @@ import { connectShopifyStore, loginMerchant } from '../services/apiClient.servic
 import { config } from '../config/env';
 import { Session } from '@shopify/shopify-api';
 
-// --- NEW: Define the shape of the GraphQL response ---
+// --- Type definition for the GraphQL response ---
 interface MetafieldMutationResponse {
     data: {
         metafieldsSet: {
-            metafields: {
-                id: string;
-                namespace: string;
-                key: string;
-                value: string;
-            }[];
-            userErrors: {
-                field: string[];
-                message: string;
-            }[];
+            metafields: { id: string; namespace: string; key: string; value: string; }[];
+            userErrors: { field: string[]; message: string; }[];
         };
     };
 }
-
 
 /**
  * Initiates the OAuth installation process.
@@ -31,7 +22,6 @@ export const initiateAuth = async (req: Request, res: Response) => {
   if (!shop) {
     return res.status(400).send("Bad Request: Missing 'shop' query parameter.");
   }
-
   try {
     await beginAuth(req, res, shop);
   } catch (error: any) {
@@ -48,22 +38,38 @@ export const initiateAuth = async (req: Request, res: Response) => {
 export const handleCallback = async (req: Request, res: Response) => {
   try {
     console.log('Received callback with query:', JSON.stringify(req.query, null, 2));
-    
+
+    // The callback function will automatically handle the session storage.
+    // It may also handle the redirect internally depending on the library version.
     await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
 
-    const host = shopify.utils.sanitizeHost(req.query.host as string);
+    // --- FIX: Add a check to prevent double execution ---
+    // If the library has already sent headers, do not attempt to redirect again.
+    if (res.headersSent) {
+        console.log('Headers already sent by shopify.auth.callback. Skipping manual redirect.');
+        return;
+    }
+
+    const host = req.query.host as string;
     if (!host) {
         return res.status(400).send("Missing host parameter");
     }
+    const decodedHost = Buffer.from(host, 'base64').toString('utf-8');
     
-    res.redirect(`https://${host}/apps/${config.SHOPIFY_API_KEY}`);
+    res.redirect(`https://${decodedHost}/apps/${config.SHOPIFY_API_KEY}`);
 
   } catch (error: any) {
+    // --- FIX: Add more detailed error logging ---
     console.error('Error during OAuth callback:', error.message);
-    res.status(500).send(error.message);
+    if (error.response) {
+      console.error('Error response body:', error.response.body);
+    }
+    if (!res.headersSent) {
+      res.status(500).send(error.message);
+    }
   }
 };
 
@@ -125,7 +131,7 @@ async function createMerchantIdMetafield(session: Session, merchantId: string) {
         const shopId = shopData.data[0].id;
         const ownerGid = `gid://shopify/Shop/${shopId}`;
 
-        const response = await client.query<MetafieldMutationResponse>({ // <-- Tell TypeScript the type here
+        const response = await client.query<MetafieldMutationResponse>({
             data: {
                 query: `mutation CreateShopMetafield($metafields: [MetafieldsSetInput!]!) {
                     metafieldsSet(metafields: $metafields) {
@@ -147,7 +153,6 @@ async function createMerchantIdMetafield(session: Session, merchantId: string) {
             },
         });
 
-        // --- FIX: Now TypeScript knows the exact shape of response.body ---
         const userErrors = response.body?.data?.metafieldsSet?.userErrors;
         if (userErrors && userErrors.length > 0) {
             console.error("Error creating metafield:", userErrors);
