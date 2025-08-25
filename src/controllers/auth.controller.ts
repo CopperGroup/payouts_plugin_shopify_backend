@@ -47,6 +47,8 @@ export const initiateAuth = async (req: Request, res: Response) => {
  */
 export const handleCallback = async (req: Request, res: Response) => {
   try {
+    console.log('Received callback with query:', JSON.stringify(req.query, null, 2));
+    
     await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
