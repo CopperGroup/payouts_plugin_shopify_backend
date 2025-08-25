@@ -1,12 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { shopify } from '../services/shopify.service';
+import { shopify, session_storage } from '../services/shopify.service'; // <-- Import session_storage
 import { config } from '../config/env';
 import crypto from 'crypto';
 
 /**
  * Middleware to verify that a request is coming from an authenticated
  * session within the Shopify Admin.
- * UPDATED: This version is compatible with older @shopify/shopify-api libraries.
  */
 export const verifyAuthenticatedSession = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -19,9 +18,10 @@ export const verifyAuthenticatedSession = async (req: Request, res: Response, ne
     const payload = await shopify.session.decodeSessionToken(token);
     const shop = payload.dest.replace('https://', '');
     
-    // The library needs an offline session ID format to look up in storage
     const sessionId = shopify.session.getOfflineId(shop);
-    const session = await shopify.config.sessionStorage.loadSession(sessionId);
+    
+    // --- FIX: Use the exported session_storage instance directly ---
+    const session = await session_storage.loadSession(sessionId);
 
     if (!session) {
       throw new Error('No session found for the given shop.');
@@ -42,7 +42,6 @@ export const verifyAuthenticatedSession = async (req: Request, res: Response, ne
 
 /**
  * A middleware specifically for verifying incoming webhooks from Shopify.
- * It uses the shopify-api library's built-in validation.
  */
 export const verifyShopifyWebhook = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -71,7 +70,7 @@ export const verifyShopifyHmac = (req: Request, res: Response, next: NextFunctio
     delete queryWithoutHmac.hmac;
     const queryString = new URLSearchParams(queryWithoutHmac as any).toString();
     const generatedHash = crypto
-      .createHmac('sha265', config.SHOPIFY_API_SECRET)
+      .createHmac('sha256', config.SHOPIFY_API_SECRET)
       .update(queryString)
       .digest('hex');
 

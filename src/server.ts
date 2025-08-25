@@ -3,6 +3,7 @@ import cors from 'cors';
 import { config } from './config/env';
 import apiRoutes from './api';
 import { connectRedis } from './config/redis'; // <-- Import the connect function
+import { initializeShopify } from './services/shopify.service';
 
 // --- Server Initialization ---
 const app = express();
@@ -29,6 +30,8 @@ app.get('/', (req: Request, res: Response) => {
 const startServer = async () => {
   // Connect to Redis before starting the Express server
   await connectRedis();
+  
+  initializeShopify();
 
   app.listen(config.PORT, () => {
     console.log(`✅ Server is listening on http://localhost:${config.PORT}`);
