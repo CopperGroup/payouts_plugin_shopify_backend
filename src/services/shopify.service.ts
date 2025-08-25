@@ -43,6 +43,8 @@ export const beginAuth = async (req: Request, res: Response, shop: string) => {
     rawRequest: req,
     rawResponse: res,
   });
+
+  return;
 };
 
 export const validateAuthCallback = async (req: Request, res: Response): Promise<Session> => {

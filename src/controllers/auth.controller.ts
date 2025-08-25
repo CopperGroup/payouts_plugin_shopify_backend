@@ -16,79 +16,67 @@ interface MetafieldMutationResponse {
 
 /**
  * Initiates the OAuth installation process.
- * This version uses an inline proxy to fix the cookie issue without causing a crash.
  */
 export const initiateAuth = async (req: Request, res: Response) => {
-  const shop = req.query.shop as string;
-  if (!shop) {
-    return res.status(400).send("Bad Request: Missing 'shop' query parameter.");
-  }
-
-  try {
-    // Create a proxy around the real response object to intercept header modifications
-    const resProxy = new Proxy(res, {
-      get(target, prop, receiver) {
-        // If the property being accessed is 'setHeader'...
-        if (prop === 'setHeader') {
-          // ...return our custom function instead of the original.
-          return (name: string, value: string | number | readonly string[]) => {
-            let modifiedValue = value;
-            // Intercept the 'set-cookie' header
-            if (name.toLowerCase() === 'set-cookie' && Array.isArray(value)) {
-              // Force SameSite=None for the OAuth cookie, which is required for embedded apps
-              modifiedValue = value.map(cookie => cookie.replace(/SameSite=Lax/i, 'SameSite=None'));
-              console.log('Successfully intercepted and corrected Set-Cookie header to use SameSite=None.');
-            }
-            // Apply the original setHeader method with the (potentially modified) value
-            return target.setHeader(name, modifiedValue);
-          };
-        }
-        // For any other property, just return the original
-        return Reflect.get(target, prop, receiver);
-      },
-    });
-
-    // Pass the proxy response object to the beginAuth function
-    await beginAuth(req, resProxy, shop);
-
-  } catch (error: any) {
-    console.error('Error initiating authentication:', error.message);
-    if (!res.headersSent) {
-      res.status(500).send(error.message);
+    const shop = req.query.shop as string;
+    if (!shop) {
+      return res.status(400).send("Bad Request: Missing 'shop' query parameter.");
     }
-  }
-};
+  
+    try {
+      await shopify.auth.begin({
+        shop,
+        callbackPath: "/api/auth/callback",
+        isOnline: false,
+        rawRequest: req,
+        rawResponse: res,
+      });
+  
+      // ⚠️ ВАЖЛИВО: не роби більше нічого тут
+      // Shopify SDK сам поставить редірект
+      return;
+  
+    } catch (error: any) {
+      console.error("Error initiating authentication:", error.message);
+      if (!res.headersSent) {
+        res.status(500).send(error.message);
+      }
+    }
+  };
 
 /**
  * Handles the callback from Shopify after the merchant authorizes the app.
  */
 export const handleCallback = async (req: Request, res: Response) => {
   try {
-    await shopify.auth.callback({
+    const { session } = await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
 
+    if (!session) {
+      throw new Error("No session returned from callback");
+    }
+
     if (res.headersSent) {
-        return;
+      return;
     }
 
     const host = req.query.host as string;
-    const shop = req.query.shop as string;
-
-    if (!host || !shop) {
-        return res.status(400).send("Missing host or shop parameter");
+    if (!host) {
+      return res.status(400).send("Missing host parameter");
     }
-    const decodedHost = Buffer.from(host, 'base64').toString('utf-8');
-    
-    // This redirect includes the necessary parameters for App Bridge to initialize
-    res.redirect(`https://${decodedHost}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`);
 
-  } catch (error: any)
-  {
-    console.error('Error during OAuth callback:', error.message);
+    // ⚠️ Використовуємо shop із session, а не з query — він надійніший
+    const shop = session.shop;
+
+    // Redirect back into embedded app (App Bridge bootstraps with shop + host)
+    res.redirect(`/?shop=${shop}&host=${host}`);
+
+  } catch (error: any) {
+    console.error("Error during OAuth callback:", error.message);
     if (error.response) {
-      console.error('Error response body:', error.response.body);
+      console.error("Error response body:", error.response.body);
     }
     if (!res.headersSent) {
       res.status(500).send(error.message);
