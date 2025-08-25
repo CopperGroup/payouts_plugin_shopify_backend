@@ -69,14 +69,13 @@ export const handleCallback = async (req: Request, res: Response) => {
 
     const shop = session.shop;
 
-    // ✅ Redirect into the embedded Shopify Admin app
+    // ⚠️ redirect саме у Shopify Admin embedded app
     res.redirect(
       `https://admin.shopify.com/store/${shop.replace(
         ".myshopify.com",
         ""
       )}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`
     );
-
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
     if (error.response) {
@@ -87,6 +86,7 @@ export const handleCallback = async (req: Request, res: Response) => {
     }
   }
 };
+
 
 
 /**
