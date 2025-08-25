@@ -55,7 +55,7 @@ export const beginAuth = async (req: Request, res: Response, shop: string) => {
 };
 
 // --- Handle OAuth callback ---
-export const validateAuthCallback = async (req: Request, res: Response): Promise<Session> => {
+export const validateAuthCallback = async (req: Request, res: Response): Promise<Session | Response<void>> => {
   const callback = await shopify.auth.callback({
     rawRequest: req,
     rawResponse: res,
@@ -77,12 +77,17 @@ export const validateAuthCallback = async (req: Request, res: Response): Promise
     console.warn("⚠️ No session returned from callback.");
   }
 
-  // 🔑 This is the missing piece
-  const host = req.query.host as string; // Shopify passes `host` param during OAuth
-  const redirectUrl = `/?shop=${callback.session.shop}&host=${host}`;
-  
-  console.log(`➡️ Redirecting to app root: ${redirectUrl}`);
-  res.redirect(redirectUrl);
+    // 🔑 This is the missing piece
+    const { host, shop } = req.query as { host?: string; shop?: string };
+    if (!host || !shop) {
+        console.error("❌ Missing host or shop in callback query:", req.query);
+        return res.status(400).send("Missing host or shop parameter");
+    }
+
+    // 3️⃣ Redirect обратно в embedded Shopify App
+    const redirectUrl = `https://${shop}/admin/apps/${config.SHOPIFY_API_KEY}?host=${host}`;
+    console.log("➡️ Redirecting back to Shopify Admin:", redirectUrl);
+    res.redirect(redirectUrl);
 
   return callback.session;
 };
