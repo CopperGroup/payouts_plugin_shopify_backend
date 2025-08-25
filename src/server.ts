@@ -1,40 +1,29 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { config } from './config/env';
-// The import for connectRedis is no longer needed
-// import { connectRedis } from './config/redis'; 
 import apiRoutes from './api';
-import session from 'express-session';
-
 
 // --- Server Initialization ---
 const app = express();
 
 // --- Middleware Setup ---
 app.use(cors());
+// This middleware is for webhooks and needs to be before express.json()
 app.use('/api/webhooks', express.raw({ type: 'application/json' }));
 app.use(express.json());
+
+// This header helps with local development using ngrok
 app.use((req, res, next) => {
   res.setHeader("ngrok-skip-browser-warning", "true");
   next();
 });
 
-app.use(
-  session({
-    secret: 'some-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: true,       // must be true for HTTPS
-      sameSite: 'none',   // required for cross-site cookies in Shopify embedded apps
-      httpOnly: true,
-    },
-  })
-);
+// The express-session middleware has been removed as it's not needed
+// and may conflict with the Shopify library's cookie handling.
+// The @shopify/shopify-api library manages its own session storage.
+
+// This setting is important for apps behind a proxy like ngrok or Railway
 app.set("trust proxy", 1);
-
-
-
 
 // --- API Routes ---
 app.use('/api', apiRoutes);
