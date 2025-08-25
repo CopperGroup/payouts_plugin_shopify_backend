@@ -24,6 +24,12 @@ export const initiateAuth = async (req: Request, res: Response) => {
   }
   try {
     await beginAuth(req, res, shop);
+    
+    // --- ADDED LOGGING ---
+    // Let's inspect the headers being sent back to the browser.
+    // We expect to see a 'Set-Cookie' header here.
+    console.log('Response headers being sent from initiateAuth:', res.getHeaders());
+
   } catch (error: any) {
     console.error('Error initiating authentication:', error.message);
     if (!res.headersSent) {
@@ -31,7 +37,6 @@ export const initiateAuth = async (req: Request, res: Response) => {
     }
   }
 };
-
 /**
  * Handles the callback from Shopify after the merchant authorizes the app.
  */
