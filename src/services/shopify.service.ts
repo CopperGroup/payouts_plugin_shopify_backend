@@ -22,12 +22,12 @@ export const shopify = shopifyApi({
   // This section explicitly configures the OAuth cookie to work in an
   // embedded context. Modern browsers require 'SameSite: none' and 'Secure'
   // for cookies set by an iframe.
-  auth: {
-    cookie: {
-      sameSite: 'none',
-      secure: true,
-    },
-  },
+//   auth: {
+//     cookie: {
+//       sameSite: 'none',
+//       secure: true,
+//     },
+//   },
   // The 'future' flag is not needed and has been removed.
 });
 
@@ -35,6 +35,7 @@ export const shopify = shopifyApi({
 export const beginAuth = async (req: Request, res: Response, shop: string) => {
   const callbackPath = '/api/auth/callback';
   
+  console.log(callbackPath)
   await shopify.auth.begin({
     shop: shop,
     callbackPath: callbackPath,
