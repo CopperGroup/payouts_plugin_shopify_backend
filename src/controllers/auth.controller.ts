@@ -16,7 +16,6 @@ interface MetafieldMutationResponse {
 
 /**
  * Initiates the OAuth installation process.
- * The Shopify library handles the entire redirect response.
  */
 export const initiateAuth = async (req: Request, res: Response) => {
     const shop = req.query.shop as string;
@@ -43,17 +42,30 @@ export const initiateAuth = async (req: Request, res: Response) => {
 
 /**
  * Handles the callback from Shopify after the merchant authorizes the app.
- * The Shopify library handles the entire process, including the final redirect.
  */
 export const handleCallback = async (req: Request, res: Response) => {
   try {
-    // The callback function will validate the request, exchange the code for a
-    // session, store it, and handle the final redirect to the embedded app.
-    // We do not need to call res.redirect() ourselves.
+    // This function validates the request and creates the session.
     await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
+
+    // If the library has already handled the redirect, we're done.
+    if (res.headersSent) {
+        return;
+    }
+
+    // If not, we perform the redirect ourselves to ensure it happens.
+    const host = req.query.host as string;
+    const shop = req.query.shop as string;
+
+    if (!host || !shop) {
+        return res.status(400).send("Missing host or shop parameter");
+    }
+    
+    // The redirect must include the shop and host parameters for App Bridge to work.
+    res.redirect(`/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`);
 
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
