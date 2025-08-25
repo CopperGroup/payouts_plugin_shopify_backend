@@ -36,6 +36,6 @@ services:
   #   depends_on:
   #     - redis
 
-volumes:
-  redis_data:
-    driver: local
+# volumes:
+#   redis_data:
+#     driver: local
