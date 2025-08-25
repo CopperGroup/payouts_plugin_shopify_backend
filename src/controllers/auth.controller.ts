@@ -67,11 +67,15 @@ export const handleCallback = async (req: Request, res: Response) => {
       return res.status(400).send("Missing host parameter");
     }
 
-    // ⚠️ Використовуємо shop із session, а не з query — він надійніший
     const shop = session.shop;
 
-    // Redirect back into embedded app (App Bridge bootstraps with shop + host)
-    res.redirect(`/?shop=${shop}&host=${host}`);
+    // ✅ Redirect into the embedded Shopify Admin app
+    res.redirect(
+      `https://admin.shopify.com/store/${shop.replace(
+        ".myshopify.com",
+        ""
+      )}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`
+    );
 
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
