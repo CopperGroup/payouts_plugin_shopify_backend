@@ -1,13 +1,22 @@
 import { Router } from 'express';
-import { initiateAuth, handleCallback } from '../controllers/auth.controller';
-import { decodeJwtFromQuery } from '../middleware/verifyJwt';
+import { 
+    initiateAuth, 
+    handleCallback,
+    loginAndLinkAccount 
+} from '../controllers/auth.controller';
+import { verifyAuthenticatedSession } from '../middleware/verifyShopify';
 
 const router = Router();
 
-// The decodeJwtFromQuery middleware will run first to check for a logged-in merchant.
-// e.g., GET /api/auth/install?shop=my-shop.myshopify.com&token=MERCHANT_JWT
-router.get('/install', decodeJwtFromQuery, initiateAuth);
+// This route starts the OAuth process. No custom middleware is needed.
+router.get('/install', initiateAuth);
 
+// This is the callback URL Shopify redirects to after the merchant approves.
 router.get('/callback', handleCallback);
+
+// NEW: This route is called by the frontend after the merchant logs in.
+// It's protected by a middleware that verifies the request is coming from
+// an authenticated Shopify session.
+router.post('/login', verifyAuthenticatedSession, loginAndLinkAccount);
 
 export default router;

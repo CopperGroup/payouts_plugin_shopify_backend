@@ -94,11 +94,6 @@ export const connectShopifyStore = async (merchantId: string, storeData: {
     }
 };
 
-/**
- * Calls the merchant-kyc service to get a merchant's full profile.
- * @param merchantId The ID of the merchant.
- * @returns The merchant's data, including their stores.
- */
 export const getMerchantById = async (merchantId: string): Promise<any> => {
     try {
         const response = await merchantKycClient.get(`/merchants/${merchantId}`);
@@ -107,4 +102,15 @@ export const getMerchantById = async (merchantId: string): Promise<any> => {
         console.error(`Error fetching merchant ${merchantId}:`, error);
         throw new Error('Failed to fetch merchant data.');
     }
+};
+
+// --- ADDED THIS EXPORTED FUNCTION ---
+export const loginMerchant = async (email: string, password: string): Promise<{ merchant: any; token: string } | null> => {
+  try {
+    const response = await merchantKycClient.post('/auth/login', { email, password });
+    return response.data;
+  } catch (error) {
+    console.error('Error authenticating with merchant service:', error);
+    return null;
+  }
 };
