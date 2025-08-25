@@ -33,7 +33,7 @@ export const shopify = shopifyApi({
 
 // ... (the rest of the file remains the same)
 export const beginAuth = async (req: Request, res: Response, shop: string) => {
-  const callbackPath = 'https://google.com/';
+  const callbackPath = '/api/auth/callback';
   
   await shopify.auth.begin({
     shop: shop,
