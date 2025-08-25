@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { shopify } from '../services/shopify.service';
+import { shopify, beginAuth } from '../services/shopify.service';
 import { connectShopifyStore, loginMerchant } from '../services/apiClient.service';
 import { config } from '../config/env';
 import { Session } from '@shopify/shopify-api';
@@ -16,28 +16,47 @@ interface MetafieldMutationResponse {
 
 /**
  * Initiates the OAuth installation process.
+ * This version uses an inline proxy to fix the cookie issue without causing a crash.
  */
 export const initiateAuth = async (req: Request, res: Response) => {
-    const shop = req.query.shop as string;
-    if (!shop) {
-      return res.status(400).send("Bad Request: Missing 'shop' query parameter.");
+  const shop = req.query.shop as string;
+  if (!shop) {
+    return res.status(400).send("Bad Request: Missing 'shop' query parameter.");
+  }
+
+  try {
+    // Create a proxy around the real response object to intercept header modifications
+    const resProxy = new Proxy(res, {
+      get(target, prop, receiver) {
+        // If the property being accessed is 'setHeader'...
+        if (prop === 'setHeader') {
+          // ...return our custom function instead of the original.
+          return (name: string, value: string | number | readonly string[]) => {
+            let modifiedValue = value;
+            // Intercept the 'set-cookie' header
+            if (name.toLowerCase() === 'set-cookie' && Array.isArray(value)) {
+              // Force SameSite=None for the OAuth cookie, which is required for embedded apps
+              modifiedValue = value.map(cookie => cookie.replace(/SameSite=Lax/i, 'SameSite=None'));
+              console.log('Successfully intercepted and corrected Set-Cookie header to use SameSite=None.');
+            }
+            // Apply the original setHeader method with the (potentially modified) value
+            return target.setHeader(name, modifiedValue);
+          };
+        }
+        // For any other property, just return the original
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+
+    // Pass the proxy response object to the beginAuth function
+    await beginAuth(req, resProxy, shop);
+
+  } catch (error: any) {
+    console.error('Error initiating authentication:', error.message);
+    if (!res.headersSent) {
+      res.status(500).send(error.message);
     }
-  
-    try {
-      await shopify.auth.begin({
-        shop,
-        callbackPath: "/api/auth/callback",
-        isOnline: false,
-        rawRequest: req,
-        rawResponse: res,
-      });
-  
-    } catch (error: any) {
-      console.error("Error initiating authentication:", error.message);
-      if (!res.headersSent) {
-        res.status(500).send(error.message);
-      }
-    }
+  }
 };
 
 /**
@@ -64,7 +83,6 @@ export const handleCallback = async (req: Request, res: Response) => {
         return res.status(400).send("Missing host or shop parameter");
     }
     
-    // --- FINAL FIX: Construct the full, absolute URL to the Shopify Admin ---
     const shopName = shop.replace(".myshopify.com", "");
     const redirectUrl = `https://admin.shopify.com/store/${shopName}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`;
     
@@ -77,6 +95,7 @@ export const handleCallback = async (req: Request, res: Response) => {
     }
   }
 };
+
 
 /**
  * Handles login from the frontend, links the merchant account,
