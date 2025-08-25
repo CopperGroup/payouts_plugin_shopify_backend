@@ -64,8 +64,11 @@ export const handleCallback = async (req: Request, res: Response) => {
         return res.status(400).send("Missing host or shop parameter");
     }
     
-    // The redirect must include the shop and host parameters for App Bridge to work.
-    res.redirect(`/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`);
+    // --- FINAL FIX: Construct the full, absolute URL to the Shopify Admin ---
+    const shopName = shop.replace(".myshopify.com", "");
+    const redirectUrl = `https://admin.shopify.com/store/${shopName}/apps/${config.SHOPIFY_API_KEY}?shop=${shop}&host=${host}`;
+    
+    res.redirect(redirectUrl);
 
   } catch (error: any) {
     console.error("Error during OAuth callback:", error.message);
@@ -74,7 +77,6 @@ export const handleCallback = async (req: Request, res: Response) => {
     }
   }
 };
-
 
 /**
  * Handles login from the frontend, links the merchant account,
