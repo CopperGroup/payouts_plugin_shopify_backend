@@ -33,7 +33,7 @@ export const beginAuth = async (req: Request, res: Response, shop: string) => {
   await shopify.auth.begin({
     shop: shop,
     callbackPath: callbackPath,
-    isOnline: true,
+    isOnline: false,
     rawRequest: req,
     rawResponse: res,
   });
