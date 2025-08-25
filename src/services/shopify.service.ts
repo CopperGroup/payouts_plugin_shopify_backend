@@ -68,27 +68,25 @@ export const validateAuthCallback = async (req: Request, res: Response): Promise
       isOnline: callback.session.isOnline,
     });
 
-    // --- Double check if it's in Redis ---
     const check = await session_storage.loadSession(callback.session.id);
-    if (check) {
-      console.log("✅ Session found in Redis immediately:", check.id);
-    } else {
+    if (!check) {
       console.error("❌ Session not found in Redis, storing manually...");
       await session_storage.storeSession(callback.session);
-
-      const afterStore = await session_storage.loadSession(callback.session.id);
-      if (afterStore) {
-        console.log("✅ Manual store succeeded:", afterStore.id);
-      } else {
-        console.error("🚨 Manual store failed — session still missing!");
-      }
     }
   } else {
     console.warn("⚠️ No session returned from callback.");
   }
 
+  // 🔑 This is the missing piece
+  const host = req.query.host as string; // Shopify passes `host` param during OAuth
+  const redirectUrl = `/?shop=${callback.session.shop}&host=${host}`;
+  
+  console.log(`➡️ Redirecting to app root: ${redirectUrl}`);
+  res.redirect(redirectUrl);
+
   return callback.session;
 };
+
 
 // --- Example REST call ---
 export const getRestProducts = async (session: Session) => {
@@ -98,3 +96,4 @@ export const getRestProducts = async (session: Session) => {
   console.log('📦 Fetched products:', products.data);
   return products.data;
 };
+
