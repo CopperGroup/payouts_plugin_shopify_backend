@@ -6,7 +6,7 @@ import { config } from '../config/env';
 import { redisClient } from '../config/redis';
 import { Request, Response } from 'express';
 
-const session_storage = new RedisSessionStorage(redisClient);
+export const session_storage = new RedisSessionStorage(redisClient);
 
 export const shopify = shopifyApi({
   apiKey: config.SHOPIFY_API_KEY,
