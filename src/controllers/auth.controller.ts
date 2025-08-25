@@ -71,10 +71,31 @@ export const initiateAuth = async (req: Request, res: Response) => {
 export const handleCallback = async (req: Request, res: Response) => {
   try {
     console.log(`\n--- Handling OAuth callback for shop: ${req.query.shop} ---`);
-    await shopify.auth.callback({
+    const callback = await shopify.auth.callback({
       rawRequest: req,
       rawResponse: res,
     });
+
+    // --- MANUAL SESSION SAVE ---
+    if (callback.session) {
+        console.log("Manually attempting to store session:", callback.session.id);
+        const success = await session_storage.storeSession(callback.session);
+        if (success) {
+            console.log("✅ Manual session save successful.");
+            // Verify by trying to load it back immediately
+            const loadedSession = await session_storage.loadSession(callback.session.id);
+            if (loadedSession) {
+                console.log("✅ Verification successful: Session loaded back from Redis.");
+            } else {
+                console.error("❌ Verification FAILED: Could not load session back from Redis after saving.");
+            }
+        } else {
+            console.error("❌ Manual session save FAILED.");
+        }
+    } else {
+        console.error("Callback did not return a session to save.");
+    }
+    // --- END MANUAL SESSION SAVE ---
 
     if (res.headersSent) {
         console.log("Redirect already handled by library.");
