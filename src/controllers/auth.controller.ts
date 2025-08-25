@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { shopify, beginAuth } from '../services/shopify.service';
 import { connectShopifyStore, loginMerchant } from '../services/apiClient.service';
 import { config } from '../config/env';
@@ -16,17 +16,43 @@ interface MetafieldMutationResponse {
 
 /**
  * Initiates the OAuth installation process.
+ * FINAL FIX: This now uses a response wrapper to intercept and modify
+ * the Set-Cookie header on the fly, preventing race conditions.
  */
-export const initiateAuth = async (req: Request, res: Response, next: NextFunction) => {
+export const initiateAuth = async (req: Request, res: Response) => {
   const shop = req.query.shop as string;
   if (!shop) {
     return res.status(400).send("Bad Request: Missing 'shop' query parameter.");
   }
+
   try {
-    await beginAuth(req, res, shop);
-    // After beginAuth sets the headers, we pass control to the next middleware
-    // which will be our cookie fixer.
-    return next();
+    // Create a proxy around the real response object
+    const resProxy = new Proxy(res, {
+      // Use the 'get' trap to intercept property access on the response object
+      get(target, prop, receiver) {
+        // If the property being accessed is 'setHeader'...
+        if (prop === 'setHeader') {
+          // ...return our custom function instead of the original.
+          return (name: string, value: string | number | readonly string[]) => {
+            let modifiedValue = value;
+            // Intercept the 'set-cookie' header
+            if (name.toLowerCase() === 'set-cookie' && Array.isArray(value)) {
+              // Force SameSite=None on the OAuth cookie
+              modifiedValue = value.map(cookie => cookie.replace(/SameSite=Lax/i, 'SameSite=None'));
+              console.log('Successfully intercepted and corrected Set-Cookie header to use SameSite=None.');
+            }
+            // Apply the original setHeader method with the (potentially modified) value
+            return target.setHeader(name, modifiedValue);
+          };
+        }
+        // For any other property, just return the original
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+
+    // Pass the proxy response object to the beginAuth function
+    await beginAuth(req, resProxy, shop);
+
   } catch (error: any) {
     console.error('Error initiating authentication:', error.message);
     if (!res.headersSent) {
@@ -34,28 +60,6 @@ export const initiateAuth = async (req: Request, res: Response, next: NextFuncti
     }
   }
 };
-
-/**
- * NEW MIDDLEWARE: This function intercepts the response after `beginAuth`
- * and forces the OAuth cookie to have `SameSite=None`.
- */
-export const fixCookieSameSite = (req: Request, res: Response) => {
-    const headers = res.getHeaders();
-    const setCookieHeaders = headers['set-cookie'];
-
-    if (Array.isArray(setCookieHeaders)) {
-        const correctedHeaders = setCookieHeaders.map(header => {
-            // Force SameSite=None for the OAuth state cookie
-            return header.replace(/SameSite=Lax/i, 'SameSite=None');
-        });
-        res.setHeader('Set-Cookie', correctedHeaders);
-        console.log('Corrected Set-Cookie headers to use SameSite=None.');
-    }
-
-    // `beginAuth` already set the redirect location, so we just end the response.
-    res.end();
-};
-
 
 /**
  * Handles the callback from Shopify after the merchant authorizes the app.
