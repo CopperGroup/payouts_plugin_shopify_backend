@@ -12,12 +12,12 @@ WORKDIR /usr/src/app
 COPY . .
 RUN npm run build
 
-# # ---- Dev Stage ----
-# FROM base AS dev
-# WORKDIR /usr/src/app
-# COPY . .
-# # Run nodemon for hot reload
-# CMD ["npm", "run", "dev"]
+# ---- Dev Stage ----
+FROM base AS dev
+WORKDIR /usr/src/app
+COPY . .
+# Run nodemon for hot reload
+CMD ["npm", "run", "dev"]
 
 # ---- Production Stage ----
 FROM node:20-alpine AS production
