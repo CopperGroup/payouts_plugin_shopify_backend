@@ -6,10 +6,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: dev   # 👈 use the dev stage
-    volumes:
-      - ./src:/usr/src/app/src  # hot reload source
-      # - /usr/src/app/node_modules  # prevent overwriting node_modules
     ports:
       - "8085:8081"
     env_file:
