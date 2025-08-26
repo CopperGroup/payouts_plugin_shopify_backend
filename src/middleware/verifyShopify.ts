@@ -14,6 +14,7 @@ export const verifyAuthenticatedSession = async (req: Request, res: Response, ne
         throw new Error('No authorization header found.');
     }
 
+    console.log("Verifying")
     const token = authHeader.replace('Bearer ', '');
     const payload = await shopify.session.decodeSessionToken(token);
     const shop = payload.dest.replace('https://', '');
