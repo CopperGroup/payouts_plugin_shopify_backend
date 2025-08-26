@@ -34,7 +34,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
         console.log("Found existing session in Redis.");
         if (session.accessToken) {
             console.log("✅ Session has an access token. App is installed.");
-            const frontendUrl = new URL('https://shopify-tawny.vercel.app');
+            const frontendUrl = new URL('https://payouts-plugin-shopify-frontend.vercel.app');
             frontendUrl.search = new URLSearchParams(req.query as Record<string, string>).toString();
             
             console.log("Redirecting to frontend:", frontendUrl.toString());
